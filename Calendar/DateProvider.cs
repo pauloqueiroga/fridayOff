@@ -1,22 +1,25 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Security.Cryptography.X509Certificates;
+using System.Diagnostics;
+using System.Linq;
 
 namespace Queiroga.FridayOff.Calendar
 {
     public class DateProvider
     {
         private readonly IDictionary<DateTime, string> _daysOff;
+        private readonly int _operationTimeoutMilliseconds;
 
         #region Constructors
-        public DateProvider() : this(new Dictionary<DateTime, string>())
+        public DateProvider() : this(new Dictionary<DateTime, string>(), 5000)
         {
             
         }
 
-        public DateProvider(IDictionary<DateTime, string> daysOff)
+        public DateProvider(IDictionary<DateTime, string> daysOff, int operationTimeoutMilliseconds)
         {
             _daysOff = daysOff;
+            _operationTimeoutMilliseconds = operationTimeoutMilliseconds;
         }
         #endregion
 
@@ -27,21 +30,40 @@ namespace Queiroga.FridayOff.Calendar
 
         public DateTime GetNextDayOff(DateTime referenceDate)
         {
-            while (true)
+            return GetNextDaysOff(referenceDate, 1).SingleOrDefault();
+        }
+
+        public IEnumerable<DateTime> GetNextDaysOff(DateTime referenceDate, int numberOfDays)
+        {
+            var stopWatch = new Stopwatch();
+            stopWatch.Start();
+
+            if (numberOfDays < 1)
+            {
+                yield break;
+            }
+
+            var count = 0;
+
+            while (count < numberOfDays 
+                && stopWatch.ElapsedMilliseconds < _operationTimeoutMilliseconds)
             {
                 if (referenceDate.DayOfWeek == DayOfWeek.Sunday)
                 {
-                    return referenceDate;
+                    count++;
+                    yield return referenceDate;
                 }
 
                 if (referenceDate.DayOfWeek == DayOfWeek.Saturday)
                 {
-                    return referenceDate;
+                    count++;
+                    yield return referenceDate;
                 }
 
                 if (_daysOff.ContainsKey(referenceDate))
                 {
-                    return referenceDate;
+                    count++;
+                    yield return referenceDate;
                 }
 
                 referenceDate = referenceDate.AddDays(1);
@@ -55,7 +77,8 @@ namespace Queiroga.FridayOff.Calendar
 
         public int GetDaysUntilNextDayOff(DateTime referenceDate)
         {
-            throw new NotImplementedException("Needs to be done, it's the main thing for this program...");
+            var nextDate = GetNextDayOff();
+            return (nextDate - referenceDate).Days;
         }
 
         /// <summary>
